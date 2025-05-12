@@ -73,6 +73,6 @@ python serve_pes2o.py
 
 #### Step 2. Send request to the address
 ```bash
-curl -X POST localhost:<FORWARD_PORT>/search -H "Content-Type: application/json" -d '{"query": "example query", "domains": "pes2o"}'
+curl -X POST localhost:5005/search -H "Content-Type: application/json" -d '{"query": "example query", "domains": "pes2o_v3"}'
 ```
 

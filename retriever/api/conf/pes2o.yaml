@@ -6,33 +6,33 @@ tasks:
     index: false
   eval: 
     task_name: perplexity  # task name is used to load the eval data. Options:["perplexity", "lm-eval"].
-    search: true  # search top-k offline
+    search: false  # search top-k offline
     merge_search: false  # merge searched results from multiple sources
     inference: false  # run inference with LM
 
 model:
   sparse_retriever: null  # choices: null, bm25
   
-  datastore_tokenizer: facebook/contriever-msmarco
-  query_tokenizer: facebook/contriever-msmarco
-  query_encoder: facebook/contriever-msmarco
-  datastore_encoder: facebook/contriever-msmarco
+  datastore_tokenizer: akariasai/pes2o_contriever
+  query_tokenizer: akariasai/pes2o_contriever
+  query_encoder: akariasai/pes2o_contriever
+  datastore_encoder: akariasai/pes2o_contriever
   lm_model: EleutherAI/pythia-1b    # LM for evaluation
 
 
 datastore:
-  domain: pes2o
+  domain: pes2o_v3
   raw_data_path: null
   chunk_size: 256  # chunk size in number of words
-  datastore_root_dir: /gscratch/zlab/rulins/data/scaling_out
+  datastore_root_dir: /future/u/gharshit/lotus-research/data/peS2o
   
   embedding:
     raw_data_path: ${datastore.raw_data_path}
     shard_ids: [0]
-    num_shards: 8
+    num_shards: 16
     chunk_size: ${datastore.chunk_size}
     keep_last_chunk: true
-    passages_dir: ${datastore.datastore_root_dir}/passages/${datastore.domain}/${datastore.embedding.num_shards}-shards
+    passages_dir: ${datastore.datastore_root_dir}/passages
 
     per_gpu_batch_size: 512
     passage_maxlength: ${datastore.chunk_size}  # need to set to a larger num than chunk size
@@ -44,13 +44,13 @@ datastore:
     normalize_text: False
 
     prefix: "passages"
-    embedding_dir: ${datastore.datastore_root_dir}/embeddings/${model.datastore_encoder}/${datastore.domain}/${datastore.embedding.num_shards}-shards
+    embedding_dir: ${datastore.datastore_root_dir}/embeddings
     use_saved_if_exists: true
 
   index:
     raw_data_path: ${datastore.raw_data_path}
     chunk_size: ${datastore.chunk_size}
-    passages_embeddings: ${datastore.embedding.embedding_dir}/*.pkl
+    passages_embeddings: ${datastore.embedding.embedding_dir}/index/*.pkl
     num_subsampled_embedding_files: 1    # Number of subsampled embeddings, use all if pass -1, not supported yet, assume use all embeddings in the dir
     index_shard_ids: [0]  # idx of passages included in each index; [0, 1, 2] means build a single index over psg-0&1&2; [[0], [1,2]] means build 1 index for psg-0 and 1 index for psg-1&2.
     save_or_load_index: True

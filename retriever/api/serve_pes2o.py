@@ -4,12 +4,12 @@ import hydra
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import threading
-import queue
 import hydra
 from omegaconf import OmegaConf
 from hydra.core.global_hydra import GlobalHydra
+from concurrent.futures import ThreadPoolExecutor
 
-from pes2o_ds import get_datastore
+from api.pes2o_ds import get_datastore
 
 
 def load_config():
@@ -51,47 +51,41 @@ class Item:
         return dict_item
 
 
-class SearchQueue:
+class SearchExecutor:
     def __init__(self, log_queries=True):
-        self.queue = queue.Queue()
+        self.executor = ThreadPoolExecutor(max_workers=1)
         self.lock = threading.Lock()
         self.current_search = None
+        self.queue_size = 0
         self.cfg = load_config()
         self.datastore = get_datastore(self.cfg)
 
         self.log_queries = log_queries
-        self.query_log = '/gscratch/scrubbed/rulins/api_query/2024_09_28_queries.jsonl'
+        self.query_log = '/future/u/gharshit/lotus-research/data/peS2o/api_query/2024_09_28_queries.jsonl'
     
     def search(self, item):
+        if self.log_queries:
+            now = datetime.datetime.now()
+            formatted_time = now.strftime('%Y-%m-%d %H:%M:%S')
+            with open(self.query_log, 'a+') as fin:
+                fin.write(json.dumps({'time': formatted_time, 'query': item.query})+'\n')
+        
         with self.lock:
-            if self.current_search is None:
-                self.current_search = item
-                if self.log_queries:
-                    now = datetime.datetime.now()
-                    formatted_time = now.strftime('%Y-%m-%d %H:%M:%S')
-                    with open(self.query_log, 'a+') as fin:
-                        fin.write(json.dumps({'time': formatted_time, 'query': item.query})+'\n')
-                results = self.datastore.search(item.query, item.n_docs)
-                self.current_search = None
-                return results
-            else:
-                future = threading.Event()
-                self.queue.put((item, future))
-                future.wait()
-                return item.searched_results
+            self.queue_size += 1
+        future = self.executor.submit(self._search_task, item)
+        return future.result()
     
-    def process_queue(self):
-        while True:
-            item, future = self.queue.get()
+    def _search_task(self, item):
+        with self.lock:
+            self.current_search = item
+        try:
+            results = self.datastore.search(item.query, item.n_docs)
+            return results
+        finally:
             with self.lock:
-                self.current_search = item
-                item.searched_results = self.datastore.search(item)
                 self.current_search = None
-            future.set()
-            self.queue.task_done()
 
-search_queue = SearchQueue()
-threading.Thread(target=search_queue.process_queue, daemon=True).start()
+search_executor = SearchExecutor()
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -100,8 +94,7 @@ def search():
         domains=request.json['domains'],
         n_docs=request.json['n_docs'],
     )
-    # Perform the search synchronously, but queue if another search is in progress
-    results = search_queue.search(item)
+    results = search_executor.search(item)
     print(results)
     return jsonify({
         "message": f"Search completed for '{item.query}' from {item.domains}",
@@ -112,8 +105,8 @@ def search():
 
 @app.route('/current_search')
 def current_search():
-    with search_queue.lock:
-        current = search_queue.current_search
+    with search_executor.lock:
+        current = search_executor.current_search
         if current:
             return jsonify({
                 "current_search": current.query,
@@ -125,8 +118,8 @@ def current_search():
 
 @app.route('/queue_size')
 def queue_size():
-    size = search_queue.queue.qsize()
-    return jsonify({"queue_size": size}), 200
+    with search_executor.lock:
+        return jsonify({"queue_size": search_executor.queue_size}), 200
 
 @app.route("/")
 def home():

@@ -17,6 +17,8 @@ class Pes2oDatastoreAPI():
         self.cfg = cfg
         print(f'\n{OmegaConf.to_yaml(self.cfg)}')
         self.index, self.passages, self.passage_id_map = self.load_pes2o_index()
+        print(f'passages: {len(self.passages)}')
+        print(f'passage_id_map: {len(self.passage_id_map)}')
         self.query_encoder, self.query_tokenizer, _ = contriever.src.contriever.load_retriever(self.cfg.model.query_encoder)
         self.query_encoder = self.query_encoder.to(device)
         self.pes2o_id_map = self.load_pes2o_id_mapping()
@@ -44,18 +46,18 @@ class Pes2oDatastoreAPI():
         results_and_scores = top_ids_and_scores[0]
         docs = [self.passages[int(doc_id)]["text"] for doc_id in results_and_scores[0]]
         ids = [self.passages[int(doc_id)]["id"] for doc_id in results_and_scores[0]]
-        pes2o_ids = [self.pes2o_id_map[_id][doc[:100]] for _id, doc in zip(ids, docs)]
+        pes2o_ids = [self.passages[int(doc_id)]["raw_id"]  for doc_id in results_and_scores[0]]
         scores = [str(score) for score in results_and_scores[1]]
         return docs, scores, pes2o_ids
     
     def load_pes2o_id_mapping(self,):
-        pes2o_mapping_file = '/gscratch/zlab/rulins/scaling-clean/api/updated_pes2o_id_mapping.pkl'
+        pes2o_mapping_file = '/future/u/gharshit/lotus-research/data/peS2o/updated_pes2o_id_mapping.pkl'
         with open(pes2o_mapping_file, 'rb') as file:
             id_mapping = pickle.load(file)
         return id_mapping
     
 
-@hydra.main(config_path="/gscratch/zlab/rulins/scaling-clean/ric/conf", config_name="pes2o")
+@hydra.main(config_path="/future/u/gharshit/lotus-research/baselines/openscholar/retriever/ric/conf", config_name="pes2o_v3")
 def get_datastore(cfg):
     ds = Pes2oDatastoreAPI(cfg)
     return ds
