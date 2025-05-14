@@ -3,14 +3,14 @@ import os
 import logging
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from src.hydra_runner import hydra_runner
-from src.embed import generate_passage_embeddings
-from src.index import build_index
-from src.search import search_topk, post_hoc_merge_topk_multi_domain
-from src.evaluate_perplexity import evaluate_perplexity
+from ..src.hydra_runner import hydra_runner
+from ..src.embed import generate_passage_embeddings
+from ..src.index import build_index
+from ..src.search import search_topk, post_hoc_merge_topk_multi_domain
+from ..src.evaluate_perplexity import evaluate_perplexity
 
 
-@hydra_runner(config_path="conf", config_name="default")
+@hydra_runner(config_path="conf", config_name="pes2o_v3")
 def main(cfg) -> None:
     
     logging.info("\n\n************** Experiment configuration ***********")

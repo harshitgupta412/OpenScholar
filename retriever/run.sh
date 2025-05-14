@@ -16,7 +16,7 @@
 
 
 
-EVAL_DOMAIN=0
+EVAL_DOMAIN=pes2o_v3
 RAW_QUERY=/future/u/gharshit/lotus-research/data/papers.jsonl
 EVAL_OUTPUT_DIR=/future/u/gharshit/lotus-research/data/retrieved_papers
 

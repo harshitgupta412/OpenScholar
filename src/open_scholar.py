@@ -2,15 +2,15 @@ from tqdm import tqdm
 import os
 import re
 import spacy
-from src.use_search_apis import search_paper_via_query, retrieve_pes2o_passages
+from .use_search_apis import search_paper_via_query, retrieve_pes2o_passages
 
 import numpy as np
 import os
 from nltk import sent_tokenize
 import vllm
-import src.instructions as instructions
+from .instructions import Instructions
 from FlagEmbedding import FlagReranker
-
+from datetime import datetime
 nlp = spacy.load('en_core_web_sm')
 
 # To compute API costs based on October 2023 pricing available at https://openai.com/ja-JP/api/pricing/
@@ -99,7 +99,7 @@ def load_hf_tokenizer(
         return tokenizer
    
 class OpenScholar(object):
-    def __init__(self, model, tokenizer, client=None, api_model_name=None, use_contexts=True, top_n=8, reranker=None, min_citation=None, norm_cite=False, ss_retriever=False):
+    def __init__(self, model, tokenizer, client=None, api_model_name=None, use_contexts=True, top_n=8, reranker=None, min_citation=None, norm_cite=False, ss_retriever=False, end_date=None):
         self.model = model
         self.tokenizer = tokenizer
         self.client = client
@@ -111,14 +111,16 @@ class OpenScholar(object):
         self.norm_cite = norm_cite
         self.ss_retriever = ss_retriever
         self.use_contexts = use_contexts
-
+        self.end_date: datetime = end_date
     # Reranking: We rerank passages based on the LMs' predictions on how useful passages are.
     def process_ranking_results(self, result):
         ratings = {int(match.group(1)): int(match.group(2)) for match in re.finditer(r'\[(\d+)\] Rating: (\d)', result)}
         return ratings
 
     def reranking_passages_cross_encoder(self, item, batch_size=5, llama3_chat=False, task_name="default", use_abstract=False):
-        
+        if self.end_date is not None:
+            item["ctxs"] = [p for p in item["ctxs"] if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
+            
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in item["ctxs"] if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
             if len(ctx_above_threshold) > self.top_n:
@@ -129,6 +131,8 @@ class OpenScholar(object):
         return reranked_contexts, sorted_results, id_mapping
     
     def reranking_passages_cross_encoder_supplemental(self, item, passages, batch_size=5, llama3_chat=False, task_name="default"):
+        if self.end_date is not None:
+            item["ctxs"] = [p for p in item["ctxs"] if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
         
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
@@ -140,7 +144,7 @@ class OpenScholar(object):
         return reranked_contexts, sorted_results, id_mapping
     
     def retrieve_keywords(self, question):
-        prompt = [instructions.keyword_extraction_prompt.format_map({"question": question})]
+        prompt = [Instructions.keyword_extraction_prompt.format_map({"question": question})]
         
         if  self.client is not None:
             result = self.client.chat.completions.create(
@@ -161,8 +165,7 @@ class OpenScholar(object):
                 max_tokens=1000,
                 stop_token_ids=[128009]
             )
-            outputs = self.model.generate(prompt, sampling_params)
-            outputs = [it.outputs[0].text for it in outputs][0]
+            outputs = self.model.generate(prompt, sampling_params)[0]
         raw_output = [t.split("[Response_End]")[0]  for t  in outputs.split("[Response_Start]") if "[Response_End]" in t][0] if "[Response_End]" in outputs else outputs
  
         queries = raw_output.split(", ")[:3]
@@ -178,14 +181,14 @@ class OpenScholar(object):
         if self.use_contexts is False:
             ctxs = []
             # support more task
-            if task_name in instructions.task_instructions:
+            if task_name in Instructions.task_instructions:
                 if zero_shot is True:
-                    input_query = instructions.task_instructions[task_name][0] + instructions.task_instructions[task_name][1] + item["input"]
+                    input_query = Instructions.task_instructions[task_name][0] + Instructions.task_instructions[task_name][1] + item["input"]
                 else:
-                    demonstration = instructions.demonstrations[task_name]
-                    input_query = instructions.task_instructions[task_name][0] + demonstration + instructions.task_instructions[task_name][1] + item["input"]
+                    demonstration = Instructions.demonstrations[task_name]
+                    input_query = Instructions.task_instructions[task_name][0] + demonstration + Instructions.task_instructions[task_name][1] + item["input"]
             if  task_name == "single_qa":
-                input_query = instructions.generation_instance_prompts_w_references_single_paper_no_context.format_map({"input": item["input"]})
+                input_query = Instructions.generation_instance_prompts_w_references_single_paper_no_context.format_map({"input": item["input"]})
         else:
             ctxs = ""
             for doc_idx, doc in enumerate(item["ctxs"][:self.top_n]):
@@ -197,29 +200,29 @@ class OpenScholar(object):
             
             if task_name =="summarization":
                 if zero_shot is True:
-                    input_query = instructions.prompts_w_references_summarization_zero_shot.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.prompts_w_references_summarization_zero_shot.format_map({"context": ctxs, "input": item["input"]})
                 else:
-                    input_query = instructions.generation_instance_prompts_summarization.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.generation_instance_prompts_summarization.format_map({"context": ctxs, "input": item["input"]})
             elif task_name == "single_qa":
                 if zero_shot is True:
-                    input_query = instructions.generation_instance_prompts_w_references_single_paper_zero_shot.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.generation_instance_prompts_w_references_single_paper_zero_shot.format_map({"context": ctxs, "input": item["input"]})
                 else:
-                    input_query = instructions.generation_instance_prompts_w_references_single_paper.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.generation_instance_prompts_w_references_single_paper.format_map({"context": ctxs, "input": item["input"]})
             
-            elif task_name in instructions.task_instructions:
-                task_instruction = instructions.task_instructions[task_name][0]
-                instance_header = instructions.task_instructions[task_name][1]
+            elif task_name in Instructions.task_instructions:
+                task_instruction = Instructions.task_instructions[task_name][0]
+                instance_header = Instructions.task_instructions[task_name][1]
                 if zero_shot is True:
                     input_query = "{0}\nReferences:\n{1}\n{2}{3}".format(task_instruction, ctxs, instance_header, item["input"])
                 else:
-                    demonstration = instructions.demonstrations[task_name]
+                    demonstration = Instructions.demonstrations[task_name]
                     input_query = "{0}{1}\nReferences:\n{2}\n{3}{4}".format(task_instruction, demonstration, ctxs, instance_header, item["input"])
                     
             else:
                 if zero_shot is True:
-                    input_query = instructions.generation_instance_prompts_w_references_zero_shot.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.generation_instance_prompts_w_references_zero_shot.format_map({"context": ctxs, "input": item["input"]})
                 else:
-                    input_query = instructions.generation_instance_prompts_w_references.format_map({"context": ctxs, "input": item["input"]})
+                    input_query = Instructions.generation_instance_prompts_w_references.format_map({"context": ctxs, "input": item["input"]})
 
         if llama3_chat is True:
             input_query = create_prompt_with_llama3_format(input_query)
@@ -243,8 +246,7 @@ class OpenScholar(object):
                 max_tokens=max_tokens,
                 stop_token_ids=[128009]
             )
-            outputs = self.model.generate([input_query], sampling_params)
-            outputs = [it.outputs[0].text for it in outputs][0]
+            outputs = self.model.generate([input_query], sampling_params)[0]
             cost = 0
         raw_output = [t.split("[Response_End]")[0] for t in outputs.split("[Response_Start]") if "[Response_End]" in t][0] if "[Response_End]" in outputs else outputs
 
@@ -260,7 +262,7 @@ class OpenScholar(object):
         return ratings
 
     def get_feedback(self, item, llama3_chat):
-        input_query = instructions.feedback_example_instance_prompt.format_map({"question": item["input"], "passages": item["final_passages"], "answer": item["output"]})
+        input_query = Instructions.feedback_example_instance_prompt.format_map({"question": item["input"], "passages": item["final_passages"], "answer": item["output"]})
         # TODO: check if the llama3 chat format is helpful or not. 
         if llama3_chat is True:
             input_query = create_prompt_with_llama3_format(input_query)
@@ -284,15 +286,14 @@ class OpenScholar(object):
                 stop_token_ids=[128009]
             )
 
-            outputs = self.model.generate([input_query], sampling_params)
-            outputs = [it.outputs[0].text for it in outputs][0]
+            outputs = self.model.generate([input_query], sampling_params)[0]
             cost = 0
         raw_output = [t.split("[Response_End]")[0]  for t  in outputs.split("[Response_Start]") if "[Response_End]" in t][0] if "[Response_End]" in outputs else outputs
         feedbacks = self.process_feedback(raw_output)
         return feedbacks, cost
 
     def edit_with_feedback(self, item, feedback, max_tokens=3000, llama3_chat=False):
-        input_query = instructions.editing_instance_prompt.format_map({"question": item["input"], "passages": item["final_passages"], "answer": item["output"], "feedback": feedback})
+        input_query = Instructions.editing_instance_prompt.format_map({"question": item["input"], "passages": item["final_passages"], "answer": item["output"], "feedback": feedback})
         
         # TODO: check if the llama3 chat format is helpful or not. 
         if llama3_chat is True:
@@ -317,8 +318,7 @@ class OpenScholar(object):
                 max_tokens=max_tokens,
                 stop_token_ids=[128009]
             )
-            outputs = self.model.generate([input_query], sampling_params)
-            outputs = [it.outputs[0].text for it in outputs][0]
+            outputs = self.model.generate([input_query], sampling_params)[0]
             cost = 0
         raw_output = [t.split("[Response_End]")[0]  for t  in outputs.split("[Response_Start]") if "[Response_End]" in t][0] if "[Response_End]" in outputs else outputs
         print("orig answer: {}".format( item["output"]))
@@ -334,7 +334,7 @@ class OpenScholar(object):
             else:
                 processed_passages += "[{0}] {1}\n".format(passage_start_index+doc_idx + len(item["ctxs"]), doc["text"])
 
-        input_query = instructions.editing_with_retrieval_instance_prompt.format_map({"question": item["input"], "retrieved_passages": processed_passages, "answer": item["output"], "feedback": feedback})
+        input_query = Instructions.editing_with_retrieval_instance_prompt.format_map({"question": item["input"], "retrieved_passages": processed_passages, "answer": item["output"], "feedback": feedback})
         if llama3_chat is True:
             input_query = create_prompt_with_llama3_format(input_query)
                 
@@ -357,8 +357,7 @@ class OpenScholar(object):
                 max_tokens=3000,
                 stop_token_ids=[128009]
             )
-            outputs = self.model.generate([input_query], sampling_params)
-            outputs = [it.outputs[0].text for it in outputs][0]
+            outputs = self.model.generate([input_query], sampling_params)[0]
             cost = 0
         raw_output = [t.split("[Response_End]")[0]  for t in outputs.split("[Response_Start]") if "[Response_End]" in t][0] if "[Response_End]" in outputs else outputs
         return raw_output, cost
@@ -399,7 +398,7 @@ class OpenScholar(object):
             print("{0} sentences require attributions, e..g, {1}".format(len(post_hoc_sentence), list(post_hoc_sentence.values())[0] ))
             prompts = []
             for s in list(post_hoc_sentence.values()):    
-                input_query = instructions.posthoc_attributions_paragraph.format_map({"statement": s, "passages": passages})
+                input_query = Instructions.posthoc_attributions_paragraph.format_map({"statement": s, "passages": passages})
 
                 if llama3_chat is True:
                     input_query = create_prompt_with_llama3_format(input_query)
@@ -426,8 +425,7 @@ class OpenScholar(object):
                     max_tokens=2000,
                     stop_token_ids=[128009]
                 )
-                outputs = self.model.generate(prompts, sampling_params)
-                outputs = [it.outputs[0].text for it in outputs]
+                outputs = self.model.generate(prompts, sampling_params)[0]
             
             # Postprocess Output
             for output, sentence_key in zip(outputs, list(post_hoc_sentence.keys())):
@@ -476,7 +474,7 @@ class OpenScholar(object):
             print("{0} sentences require attributions, e..g, {1}".format(len(post_hoc_sentence), list(post_hoc_sentence.values())[0] ))
             prompts = []
             for s in list(post_hoc_sentence.values()):    
-                input_query = instructions.posthoc_attributions.format_map({"statement": s, "passages": passages})
+                input_query = Instructions.posthoc_attributions.format_map({"statement": s, "passages": passages})
 
                 if llama3_chat is True:
                     input_query = create_prompt_with_llama3_format(input_query)
@@ -503,8 +501,7 @@ class OpenScholar(object):
                     max_tokens=2000,
                     stop_token_ids=[128009]
                 )
-                outputs = self.model.generate(prompts, sampling_params)
-                outputs = [it.outputs[0].text for it in outputs]
+                outputs = self.model.generate(prompts, sampling_params)[0]
             
             # process_output
             for output, sentence_key in zip(outputs, list(post_hoc_sentence.keys())):
@@ -552,7 +549,7 @@ class OpenScholar(object):
                 post_hoc_sentence["[replace_{}]".format(s_index)] = statement
 
         for s in list(post_hoc_sentence.values()):    
-            input_query = instructions.posthoc_attributions_paragraph_all.format_map({"statement": s, "passages": passages})
+            input_query = Instructions.posthoc_attributions_paragraph_all.format_map({"statement": s, "passages": passages})
 
             if llama3_chat is True:
                 input_query = create_prompt_with_llama3_format(input_query)
@@ -581,8 +578,7 @@ class OpenScholar(object):
                 max_tokens=1000,
                 stop_token_ids=[128009]
             )
-            outputs = self.model.generate(prompts, sampling_params)
-            outputs = [it.outputs[0].text for it in outputs]
+            outputs = self.model.generate(prompts, sampling_params)[0]
             cost = 0
         
         # process_output

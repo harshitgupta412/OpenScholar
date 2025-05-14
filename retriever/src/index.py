@@ -27,13 +27,8 @@ try:
 except:
     logging.warning("Failed to import pyserini! Please install it from https://github.com/castorini/pyserini/tree/master.")
 
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.slurm
-from contriever.src.evaluation import calculate_matches
-import contriever.src.normalize_text
 
-from src.data import fast_load_jsonl_shard
+from .data import fast_load_jsonl_shard
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 

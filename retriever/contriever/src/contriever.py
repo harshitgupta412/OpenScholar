@@ -5,7 +5,7 @@ import torch
 import transformers
 from transformers import BertModel, XLMRobertaModel
 
-from contriever.src import utils
+from . import utils
 
 
 class Contriever(BertModel):

@@ -28,7 +28,7 @@ datastore:
   
   embedding:
     raw_data_path: ${datastore.raw_data_path}
-    shard_ids: [0]
+    shard_ids: []
     num_shards: 16
     chunk_size: ${datastore.chunk_size}
     keep_last_chunk: true
@@ -52,7 +52,7 @@ datastore:
     chunk_size: ${datastore.chunk_size}
     passages_embeddings: ${datastore.embedding.embedding_dir}/*.pkl
     num_subsampled_embedding_files: 1    # Number of subsampled embeddings, use all if pass -1, not supported yet, assume use all embeddings in the dir
-    index_shard_ids: [0]  # idx of passages included in each index; [0, 1, 2] means build a single index over psg-0&1&2; [[0], [1,2]] means build 1 index for psg-0 and 1 index for psg-1&2.
+    index_shard_ids: [[0], [1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12], [13], [14], [15]]  # idx of passages included in each index; [0, 1, 2] means build a single index over psg-0&1&2; [[0], [1,2]] means build 1 index for psg-0 and 1 index for psg-1&2.
     save_or_load_index: True
     no_fp16: False
     index_type: PQ    # PQ, PQIVF (PQ degrades to flat when n_subquantizers is 0)
@@ -64,7 +64,7 @@ datastore:
 
 
 evaluation:
-  domain: ???
+  domain: pes2o_v3
   search:
     n_docs: 1
     per_gpu_batch_size: 64    # Batch size for query encoding

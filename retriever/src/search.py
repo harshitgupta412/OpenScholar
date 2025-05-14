@@ -24,18 +24,15 @@ except:
     logging.warning("Failed to import pyserini! Please install it from https://github.com/castorini/pyserini/tree/master.")
 
 
-import contriever.src.index
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.slurm
-from contriever.src.evaluation import calculate_matches
-import contriever.src.normalize_text
+from ..contriever.src.contriever import load_retriever
+from ..contriever.src.evaluation import calculate_matches
+from ..contriever.src.normalize_text import normalize
 
-from src.data import load_eval_data
-from src.index import Indexer, get_index_dir_and_passage_paths, get_index_passages_and_id_map, get_bm25_index_dir
-from src.decontamination import check_below_lexical_overlap_threshold
+from .data import load_eval_data
+from .index import Indexer, get_index_dir_and_passage_paths, get_index_passages_and_id_map, get_bm25_index_dir
+from .decontamination import check_below_lexical_overlap_threshold
 try:
-    from utils.deduplication import remove_duplicates_with_minhash, multiprocess_deduplication
+    from ..utils.deduplication import remove_duplicates_with_minhash, multiprocess_deduplication
 except:
     print("Cannot import from utils")
 
@@ -52,7 +49,7 @@ def embed_queries(args, queries, model, tokenizer, model_name_or_path):
             if args.lowercase:
                 q = q.lower()
             if args.normalize_text:
-                q = contriever.src.normalize_text.normalize(q)
+                q = normalize(q)
             all_question.append(q)
         
         embeddings = model.encode(all_question, batch_size=min(128, args.per_gpu_batch_size))  # sentence-transformer has extra memory overhead and can only support a smaller batch size
@@ -66,7 +63,7 @@ def embed_queries(args, queries, model, tokenizer, model_name_or_path):
                 if args.lowercase:
                     q = q.lower()
                 if args.normalize_text:
-                    q = contriever.src.normalize_text.normalize(q)
+                    q = normalize(q)
                 batch_question.append(q)
 
                 if len(batch_question) == args.per_gpu_batch_size or k == len(queries) - 1:
@@ -232,7 +229,7 @@ def search_dense_topk(cfg):
         model_name_or_path = cfg.model.query_encoder
         tokenizer_name_or_path = cfg.model.query_tokenizer
         if "contriever" in model_name_or_path:
-            query_encoder, query_tokenizer, _ = contriever.src.contriever.load_retriever(model_name_or_path)
+            query_encoder, query_tokenizer, _ = load_retriever(model_name_or_path)
         elif "dragon" in model_name_or_path:
             query_tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
             query_encoder = AutoModel.from_pretrained(model_name_or_path)

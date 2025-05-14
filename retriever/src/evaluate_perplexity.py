@@ -15,16 +15,9 @@ import numpy as np
 import torch
 import transformers
 
-import contriever.src.index
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.slurm
-from contriever.src.evaluation import calculate_matches
-import contriever.src.normalize_text
-
-from src.data import load_eval_data
-from src.search import get_merged_search_output_path, get_search_output_path
-from src.decontamination import check_below_lexical_overlap_threshold
+from .data import load_eval_data
+from .search import get_merged_search_output_path, get_search_output_path
+from .decontamination import check_below_lexical_overlap_threshold
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 

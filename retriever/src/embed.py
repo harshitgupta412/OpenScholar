@@ -13,12 +13,10 @@ import torch
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 
-import contriever.src.slurm
-import contriever.src.contriever
-import contriever.src.utils
-import contriever.src.normalize_text
+from ..contriever.src.contriever import load_retriever
+from ..contriever.src.normalize_text import normalize
 
-from src.data import fast_load_jsonl_shard
+from .data import fast_load_jsonl_shard
 
 
 def embed_passages(args, passages, model, tokenizer):
@@ -33,7 +31,7 @@ def embed_passages(args, passages, model, tokenizer):
             if args.lowercase:
                 text = text.lower()
             if args.normalize_text:
-                text = contriever.src.normalize_text.normalize(text)
+                text = normalize(text)
             alltext.append(text)
         
         with torch.no_grad():
@@ -53,7 +51,7 @@ def embed_passages(args, passages, model, tokenizer):
                 if args.lowercase:
                     text = text.lower()
                 if args.normalize_text:
-                    text = contriever.src.normalize_text.normalize(text)
+                    text = normalize(text)
                 batch_text.append(text)
 
                 if len(batch_text) == args.per_gpu_batch_size or k == len(passages) - 1:
@@ -110,7 +108,7 @@ def generate_passage_embeddings(cfg):
         
         logging.info(f"Loading retriever model from {args.model_name_or_path}...")
         if "contriever" in args.model_name_or_path:
-            model, tokenizer, _ = contriever.src.contriever.load_retriever(args.model_name_or_path)
+            model, tokenizer, _ = load_retriever(args.model_name_or_path)
         elif "dragon" in args.model_name_or_path:
             tokenizer_name_or_path = args.tokenizer if args.get('tokenizer', None) else args.model_name_or_path
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
