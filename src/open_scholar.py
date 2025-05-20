@@ -132,7 +132,7 @@ class OpenScholar(object):
     
     def reranking_passages_cross_encoder_supplemental(self, item, passages, batch_size=5, llama3_chat=False, task_name="default"):
         if self.end_date is not None:
-            item["ctxs"] = [p for p in item["ctxs"] if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
+            passages = [p for p in passages if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
         
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
