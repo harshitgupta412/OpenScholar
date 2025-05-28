@@ -119,7 +119,9 @@ class OpenScholar(object):
 
     def reranking_passages_cross_encoder(self, item, batch_size=5, llama3_chat=False, task_name="default", use_abstract=False):
         if self.end_date is not None:
-            item["ctxs"] = [p for p in item["ctxs"] if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
+            print("before filtering -- number of ctxs: {0}".format(len(item["ctxs"])))
+            print(item["ctxs"][0])
+            item["ctxs"] = [p for p in item["ctxs"] if ("date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date) or ("date" not in p)]
             
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in item["ctxs"] if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
@@ -132,7 +134,9 @@ class OpenScholar(object):
     
     def reranking_passages_cross_encoder_supplemental(self, item, passages, batch_size=5, llama3_chat=False, task_name="default"):
         if self.end_date is not None:
-            passages = [p for p in passages if "date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date]
+            print("before filtering -- number of passages: {0}".format(len(passages)))
+            print(passages[0])
+            passages = [p for p in passages if ("publicationDate" in p and p["publicationDate"] is not None and datetime.strptime(p["publicationDate"], "%Y-%m-%d") <= self.end_date) or ("publicationDate" not in p)]
         
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
@@ -599,7 +603,8 @@ class OpenScholar(object):
         
         return "\n".join(updated_sentences), cost
 
-    def run(self, item, ranking_ce=False, use_feedback=False, skip_generation=False, posthoc_at=False, llama3_chat=False, task_name="default", zero_shot=False, max_per_paper=None, use_abstract=False, max_tokens=3000):
+    def run(self, item, ranking_ce=False, use_feedback=False, skip_generation=False, posthoc_at=False, llama3_chat=False, task_name="default", zero_shot=False, max_per_paper=None, use_abstract=False, max_tokens=3000, end_date=None):
+        self.end_date = end_date
         print("llama3 chat format? {0}".format(llama3_chat))
         print("use feedback: {}".format(use_feedback))
         total_cost = 0

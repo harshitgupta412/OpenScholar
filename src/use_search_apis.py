@@ -96,7 +96,7 @@ def get_citations(paper_id):
 def search_paper_via_query(query, max_paper_num=10):
     if "Search queries: " in query:
         query = query.split("Search queries: ")[1]
-    query_params = {'query': query, 'limit': max_paper_num, "minCitationCount": 10, "sort": "citationCount:desc", 'fields': 'title,year,abstract,authors.name,citationCount,year,url,externalIds'}
+    query_params = {'query': query, 'limit': max_paper_num, "minCitationCount": 10, "sort": "citationCount:desc", 'fields': 'title,year,abstract,authors.name,citationCount,year,url,externalIds,publicationDate'}
     api_key = S2_API_KEY
     # Define headers with API key
     headers = {'x-api-key': api_key}
@@ -154,6 +154,7 @@ def search_semantic_scholar(question, client, model_name):
     paper_list = {}
     for keyword in new_keywords:    
         top_papers = search_paper_via_query(keyword)
+        print(top_papers)
         if top_papers is None:
             return [], []
         for paper in top_papers:
