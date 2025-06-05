@@ -17,8 +17,8 @@
 
 
 EVAL_DOMAIN=pes2o_v3
-RAW_QUERY=/future/u/gharshit/lotus-research/data/papers.jsonl
-EVAL_OUTPUT_DIR=/future/u/gharshit/lotus-research/data/retrieved_papers
+RAW_QUERY=/future/u/gharshit/lotus-research/data/filtered2_df.jsonl
+EVAL_OUTPUT_DIR=/future/u/gharshit/lotus-research/data/retrieved_papers_new
 
 DS_NAME=pes2o_v3
 NUM_SHARDS=16
@@ -31,7 +31,7 @@ done
 index_list+="]"
 echo INDEX_IDS:$index_list
 
-PYTHONPATH=.  python ric/main_ric.py \
+PYTHONPATH=.  python -m retriever.ric.main_ric \
     --config-name pes2o_v3 \
     tasks.eval.task_name=lm-eval \
     tasks.eval.search=true \

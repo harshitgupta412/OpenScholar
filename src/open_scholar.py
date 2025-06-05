@@ -121,7 +121,7 @@ class OpenScholar(object):
         if self.end_date is not None:
             print("before filtering -- number of ctxs: {0}".format(len(item["ctxs"])))
             print(item["ctxs"][0])
-            item["ctxs"] = [p for p in item["ctxs"] if ("date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") <= self.end_date) or ("date" not in p)]
+            item["ctxs"] = [p for p in item["ctxs"] if ("date" in p and p["date"] is not None and datetime.strptime(p["date"], "%Y-%m-%d") < self.end_date) or ("date" not in p)]
             
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in item["ctxs"] if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
@@ -136,7 +136,7 @@ class OpenScholar(object):
         if self.end_date is not None:
             print("before filtering -- number of passages: {0}".format(len(passages)))
             print(passages[0])
-            passages = [p for p in passages if ("publicationDate" in p and p["publicationDate"] is not None and datetime.strptime(p["publicationDate"], "%Y-%m-%d") <= self.end_date) or ("publicationDate" not in p)]
+            passages = [p for p in passages if ("publicationDate" in p and p["publicationDate"] is not None and datetime.strptime(p["publicationDate"], "%Y-%m-%d") < self.end_date) or ("publicationDate" not in p)]
         
         if self.min_citation is not None:
             ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
