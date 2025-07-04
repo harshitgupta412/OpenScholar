@@ -2,8 +2,8 @@ from tqdm import tqdm
 import os
 import re
 import spacy
-from .use_search_apis import search_paper_via_query, retrieve_pes2o_passages
-
+from .use_search_apis import retrieve_pes2o_passages
+from .lotus_search import search_paper_via_query
 import numpy as np
 import os
 from nltk import sent_tokenize
@@ -133,16 +133,20 @@ class OpenScholar(object):
         return reranked_contexts, sorted_results, id_mapping
     
     def reranking_passages_cross_encoder_supplemental(self, item, passages, batch_size=5, llama3_chat=False, task_name="default"):
-        if self.end_date is not None:
-            print("before filtering -- number of passages: {0}".format(len(passages)))
-            print(passages[0])
-            passages = [p for p in passages if ("publicationDate" in p and p["publicationDate"] is not None and datetime.strptime(p["publicationDate"], "%Y-%m-%d") < self.end_date) or ("publicationDate" not in p)]
-        
-        if self.min_citation is not None:
-            ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
-            if len(ctx_above_threshold) > self.top_n:
-                passages = ctx_above_threshold
-                print("after filtering -- number of ctxs: {0}".format(len(passages)))
+        try:
+            if self.end_date is not None:
+                print("before filtering -- number of passages: {0}".format(len(passages)))
+                print(passages[0])
+                passages = [p for p in passages if ("publicationDate" in p and p["publicationDate"] is not None and datetime.strptime(p["publicationDate"], "%Y-%m-%d %H:%M:%S%z") < self.end_date) or ("publicationDate" not in p)]
+        except Exception as e:
+            print("Error in reranking_passages_cross_encoder_supplemental: ", e)
+            print("Passages: ", passages)
+            print("Item: ", item)
+        # if self.min_citation is not None:
+        #     ctx_above_threshold = [p for p in passages if "citation_counts" in p and p["citation_counts"] >= self.min_citation]
+        #     if len(ctx_above_threshold) > self.top_n:
+        #         passages = ctx_above_threshold
+        #         print("after filtering -- number of ctxs: {0}".format(len(passages)))
                 
         reranked_contexts, sorted_results, id_mapping = rerank_paragraphs_bge(item["input"], passages, self.reranker, norm_cite=False, start_index=len(item["ctxs"]))
         return reranked_contexts, sorted_results, id_mapping
@@ -261,6 +265,7 @@ class OpenScholar(object):
 
     # Feedback: send feedback on model' predictions.
     def process_feedback(self, response):
+        print("FEEDBACK: ", response)
         feedbacks_and_questions = re.findall(r'Feedback: (.*?)(?:Question: (.*?))?\n', response)
         ratings = [(feedback.strip(), question.strip() if question else "") for feedback, question in feedbacks_and_questions]
         return ratings
@@ -639,9 +644,10 @@ class OpenScholar(object):
 
         if use_feedback is True:
             print("generating feedback")
-            feedbacks, feedback_cost = self.get_feedback(item, llama3_chat=llama3_chat)[:3]
+            feedbacks, feedback_cost = self.get_feedback(item, llama3_chat=llama3_chat)
             total_cost += feedback_cost
             item["feedbacks"] = feedbacks
+            print("FEEDBACKS: ", feedbacks)
             for feedback_idx, feedback in tqdm(enumerate(feedbacks[:3])):
                 # currently only supports non retrieval feedback
                 if len(feedback[1]) == 0:
@@ -663,10 +669,10 @@ class OpenScholar(object):
                         paper_list = {}
                         if len(new_keywords) > 0:
                             for keyword in new_keywords:    
-                                top_papers = search_paper_via_query(keyword)
-                                print(top_papers)
+                                top_papers = search_paper_via_query(keyword, end_date=self.end_date)
+                                print("top_papers: ", top_papers)
                                 if top_papers is None:
-                                    print(keyword)
+                                    print("keyword: ", keyword)
                                 else:
                                     for paper in top_papers:
                                         if paper["paperId"] not in paper_list:
