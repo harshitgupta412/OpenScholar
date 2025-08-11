@@ -6,6 +6,7 @@ import time
 def search_paper_via_query(query, max_paper_num=10, corpus=[WebSearchCorpus.ARXIV], end_date: datetime | None = None):
     collected_results = []
     for corpus in corpus:
+        count = 5
         while True:
             try:
                 df = web_search(
@@ -20,7 +21,10 @@ def search_paper_via_query(query, max_paper_num=10, corpus=[WebSearchCorpus.ARXI
                 print(f"Error searching for query: {query}")
                 print(e)
                 time.sleep(1)
-                
+                count -= 1
+                if count == 0:
+                    df = pd.DataFrame(columns=["title", "url", "snippet", "query", "context"])
+                    break
         if len(df) == 0:
             print(f"No results found for query: {query}")
             continue

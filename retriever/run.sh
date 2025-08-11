@@ -18,7 +18,7 @@
 
 EVAL_DOMAIN=pes2o_v3
 RAW_QUERY=/future/u/gharshit/lotus-research/data/papers2.jsonl
-EVAL_OUTPUT_DIR=/future/u/gharshit/lotus-research/data/retrieved_papers_2
+EVAL_OUTPUT_DIR=/future/u/gharshit/lotus-research/data/retrieved_papers_63
 
 DS_NAME=pes2o_v3
 NUM_SHARDS=16
